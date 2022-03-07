@@ -19,9 +19,13 @@
 \usepackage{xspace}
 \usepackage{fancyvrb}
 \usepackage[titletoc]{appendix}
+\usepackage{url}
 
 
 \begin{document}
+
+\newcommand{\var}{\mathrm{var}}
+\newcommand{\val}{\mathrm{val}}
 
 \begin{titlepage}
 	\newcommand{\HRule}{\rule{\linewidth}{0.5mm}}
@@ -54,33 +58,119 @@
 
 \section{Introduction}
 
-The book~\cite{FWbook}
+In this document we describe the implementation of a \emph{Continuation Passing Style} (CPS) interpreter for a language called Lurk, which was designed specifically for Zero Knowledge Proof (ZKP) systems.
+
+We are going to closely follow the approach proposed in the book ``Essentials of Programming Languages''~\cite{FWbook}.
+
+\section{Zero Knowledge Proofs}
+
+In this section we present some basic concepts that are required in order to understand this specification.
+
+\subsection{Basic concepts}
+
+The zero knowledge Apia
+
+\begin{itemize}
+		\item[-] \textbf{Setup.}
+		\item[-] \textbf{Prove.}
+		\item[-] \textbf{Verify.}
+\end{itemize}
+
+SNARKs
+
+The trusted setup problem.
+
+The witness and its relation to non-deterministic memory.
+
+Circuits, R1CS and other formats.
+
+\subsection{Backends}
+
+Groth16~\cite{groth16}
+
+Nova~\cite{nova}
+
+Halo2~\cite{halo, halo2}
+
 
 \section{Lurk}
 
+In this section we shortly describe Lurk concepts.
+
 \subsection{Overview}
 
-t, nil
+We construct an interpreter for a functional language called Lurk.
 
-if
+It is a Turing-complete language.
 
-lambda
+The interpreter is based on CPS.
 
-let
+We have an environment where we can manage variable bindings. For instance, the environment can be represented by the following list:
 
-letrec
+$$\{(\var_{0}, \val_{0}), \dots, (\var_{n}, \val_{n})\}.$$
 
-quote
 
-atom
 
-cons, car, cdr
+We have expressions that can represent recursive data and operations.
 
-arithmetic operations
+We have continuations, which can be used to manage control flow of programs.
 
-equality
 
-current env
+
+
+
+
+\subsection{Examples}
+
+
+\subsubsection{Exponentiation}
+
+\begin{verbatim}
+(letrec ((exp (lambda (base exponent)
+                 (if (= 0 exponent)
+                     1
+                     (* base (exp base (- exponent 1)))))))
+         (current-env))
+\end{verbatim}
+
+
+\subsubsection{Fibonacci}
+
+\begin{verbatim}
+(letrec ((next (lambda (a b n target)
+                 (if (eq n target)
+                     a
+                     (next b
+                           (+ a b)
+                           (+ 1 n)
+                           target))))
+         (fib (next 0 1 0)))
+        (current-env))
+\end{verbatim}
+
+\subsection{Components}
+
+\subsubsection{t, nil}
+
+\subsubsection{if}
+
+\subsubsection{lambda}
+
+\subsubsection{let}
+
+\subsubsection{letrec}
+
+\subsubsection{quote}
+
+\subsubsection{atom}
+
+\subsubsection{cons, car, cdr}
+
+\subsubsection{Arithmetic operations}
+
+\subsubsection{Equality test}
+
+\subsubsection{Current env}
 
 
 \subsection{Expressions}
