@@ -1,3 +1,5 @@
+//! Implement the zero-knowledge circuit for Lurk eval.
+
 #![allow(clippy::too_many_arguments)]
 
 use bellperson::{
@@ -23,6 +25,21 @@ use crate::gadgets::constraints::{
 use crate::proof::SequentialCS;
 use crate::store::{ContPtr, ContTag, Op1, Op2, Ptr, Store, Tag, Thunk};
 
+
+/// Represent an evaluation frame.
+///
+/// # Arguments
+///
+/// * `store` - a reference to the store.
+/// * `input` - the frame input.
+/// * `output` - the frame output.
+/// * `witness` - the ZKP witness.
+///
+/// # Examples
+///
+/// ```
+///    let blank_frame = CircuitFrame::<Scalar, _, _>::blank(&store);
+/// ```
 #[derive(Clone)]
 pub struct CircuitFrame<'a, F: PrimeField, T, W> {
     pub store: &'a Store<F>,
