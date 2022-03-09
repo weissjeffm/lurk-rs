@@ -457,7 +457,7 @@ mod tests {
                      y))
                   999)",
             |store| store.num(999),
-            13,
+            10,
             DEFAULT_CHECK_GROTH16,
             true,
             300,
@@ -469,15 +469,88 @@ mod tests {
     #[ignore]
     fn outer_prove_evaluate4() {
         outer_prove_aux(
-            &"(= 888 ((lambda (y)
+            &"((lambda (y)
                     ((lambda (x)
                        ((lambda (z) z)
                         x))
                      ;; NOTE: We pass a different value here.
                      888))
-                  999))",
-            |store| store.t(),
+                  999)",
+            |store| store.num(888),
+            10,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate5() {
+        outer_prove_aux(
+            &"(((lambda (fn)
+                     (lambda (x) (fn x)))
+                   (lambda (y) y))
+                  999)",
+            |store| store.num(999),
             13,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_sum() {
+        outer_prove_aux(
+            &"(+ 2 (+ 3 4))",
+            |store| store.num(9),
+            6,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_diff() {
+        outer_prove_aux(
+            &"(- 9 5)",
+            |store| store.num(4),
+            3,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_product() {
+        outer_prove_aux(
+            &"(* 9 5)",
+            |store| store.num(45),
+            3,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_quotient() {
+        outer_prove_aux(
+            &"(/ 21 3)",
+            |store| store.num(7),
+            3,
             DEFAULT_CHECK_GROTH16,
             true,
             300,
