@@ -415,4 +415,73 @@ mod tests {
             false,
         );
     }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate() {
+        outer_prove_aux(
+            &"((lambda (x) x) 99)",
+            |store| store.num(99),
+            4,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate2() {
+        outer_prove_aux(
+            &"((lambda (y)
+                   ((lambda (x) y) 888))
+                 99)",
+            |store| store.num(99),
+            9,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate3() {
+        outer_prove_aux(
+            &"((lambda (y)
+                    ((lambda (x)
+                       ((lambda (z) z)
+                        x))
+                     y))
+                  999)",
+            |store| store.num(999),
+            13,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate4() {
+        outer_prove_aux(
+            &"(= 888 ((lambda (y)
+                    ((lambda (x)
+                       ((lambda (z) z)
+                        x))
+                     ;; NOTE: We pass a different value here.
+                     888))
+                  999))",
+            |store| store.t(),
+            13,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
 }
