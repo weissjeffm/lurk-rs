@@ -557,4 +557,585 @@ mod tests {
             false,
         );
     }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_equal1() {
+        outer_prove_aux(
+            &"(= 5 5)",
+            |store| store.t(),
+            3,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_equal2() {
+        outer_prove_aux(
+            &"(((lambda (x)
+                   (lambda (y)
+                     (+ x y)))
+                 2)
+                3)",
+            |store| store.num(5),
+            13,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_let_simple() {
+        outer_prove_aux(
+            &"(let ((a 1))
+                 a)",
+            |store| store.num(1),
+            3,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_let_bug() {
+        //TODO: fix this test
+        outer_prove_aux(
+            &"(let () (+ 1 2))",
+            |store| store.num(3),
+            4,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_let() {
+        outer_prove_aux(
+            &"(let ((a 1)
+                      (b 2)
+                      (c 3))
+                 (+ a (+ b c)))",
+            |store| store.num(6),
+            18,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_arithmetic() {
+        outer_prove_aux(
+            &"((((lambda (x)
+                     (lambda (y)
+                       (lambda (z)
+                         (* z
+                            (+ x y)))))
+                   2)
+                  3)
+                 4)",
+            |store| store.num(20),
+            23,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_arithmetic_let() {
+        outer_prove_aux(
+            &"(let ((x 2)
+                       (y 3)
+                       (z 4))
+                  (* z (+ x y)))",
+            |store| store.num(20),
+            18,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_comparison() {
+        outer_prove_aux(
+            &"(let ((x 2)
+                      (y 3)
+                      (z 4))
+                 (= 20 (* z
+                          (+ x y))))",
+            |store| store.t(),
+            21,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_conditional() {
+        outer_prove_aux(
+            &"(let ((true (lambda (a)
+                              (lambda (b)
+                                a)))
+                      (false (lambda (a)
+                               (lambda (b)
+                                 b)))
+                      ;; NOTE: We cannot shadow IF because it is built-in.
+                      (if- (lambda (a)
+                             (lambda (c)
+                               (lambda (cond)
+                                 ((cond a) c))))))
+                 (((if- 5) 6) true))",
+            |store| store.num(5),
+            35,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_conditional2() {
+        outer_prove_aux(
+            &"(let ((true (lambda (a)
+                              (lambda (b)
+                                a)))
+                      (false (lambda (a)
+                               (lambda (b)
+                                 b)))
+                      ;; NOTE: We cannot shadow IF because it is built-in.
+                      (if- (lambda (a)
+                             (lambda (c)
+                               (lambda (cond)
+                                 ((cond a) c))))))
+                 (((if- 5) 6) false))",
+            |store| store.num(6),
+            32,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_fundamental_conditional_bug() {
+        outer_prove_aux(
+            &"(let ((true (lambda (a)
+                              (lambda (b)
+                                a)))
+                      ;; NOTE: We cannot shadow IF because it is built-in.
+                      (if- (lambda (a)
+                             (lambda (c)
+                               (lambda (cond)
+                                 ((cond a) c))))))
+                 (((if- 5) 6) true))",
+            |store| store.num(5),
+            32,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_if() {
+        outer_prove_aux(
+            &"(if nil 5 6)",
+            |store| store.num(6),
+            3,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_fully_evaluates() {
+        outer_prove_aux(
+            &"(if t (+ 5 5) 6)",
+            |store| store.num(10),
+            5,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_recursion() {
+        outer_prove_aux(
+            &"(letrec ((exp (lambda (base)
+                                  (lambda (exponent)
+                                    (if (= 0 exponent)
+                                        1
+                                        (* base ((exp base) (- exponent 1))))))))
+                          ((exp 5) 3))",
+            |store| store.num(125),
+            91,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_recursion_multiarg() {
+        outer_prove_aux(
+            &"(letrec ((exp (lambda (base exponent)
+                                  (if (= 0 exponent)
+                                      1
+                                      (* base (exp base (- exponent 1)))))))
+                          (exp 5 3))",
+            |store| store.num(125),
+            95,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_recursion_optimized() {
+        outer_prove_aux(
+            &"(let ((exp (lambda (base)
+                               (letrec ((base-inner
+                                          (lambda (exponent)
+                                            (if (= 0 exponent)
+                                                1
+                                                (* base (base-inner (- exponent 1)))))))
+                                        base-inner))))
+                   ((exp 5) 3))",
+            |store| store.num(125),
+            75,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_tail_recursion() {
+        //TODO: Fix problem (process didn't exit successfully ... (signal: 9, SIGKILL: kill))
+        outer_prove_aux(
+            &"(letrec ((exp (lambda (base)
+                                  (lambda (exponent-remaining)
+                                    (lambda (acc)
+                                      (if (= 0 exponent-remaining)
+                                          acc
+                                          (((exp base) (- exponent-remaining 1)) (* acc base))))))))
+                          (((exp 5) 3) 1))",
+            |store| store.num(125),
+            129,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_tail_recursion_somewhat_optimized() {
+        outer_prove_aux(
+            &"(letrec ((exp (lambda (base)
+                                  (letrec ((base-inner
+                                             (lambda (exponent-remaining)
+                                               (lambda (acc)
+                                                 (if (= 0 exponent-remaining)
+                                                     acc
+                                                     ((base-inner (- exponent-remaining 1)) (* acc base)))))))
+                                           base-inner))))
+                          (((exp 5) 3) 1))",
+            |store| store.num(125),
+            110,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_no_mutual_recursion() {
+        outer_prove_aux(
+            &"(letrec ((even (lambda (n)
+                                 (if (= 0 n)
+                                     t
+                                     (odd (- n 1)))))
+                         (odd (lambda (n)
+                                (even (- n 1)))))
+                        ;; NOTE: This is not true mutual-recursion.
+                        ;; However, it exercises the behavior of LETREC.
+                        (odd 1))",
+            |store| store.t(),
+            22,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_let_no_body() {
+        outer_prove_aux(
+            &"(let ((a 9)))",
+            |store| store.nil(),
+            3,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_cons1() {
+        outer_prove_aux(
+            &"(car (cons 1 2))",
+            |store| store.num(1),
+            5,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn outer_prove_evaluate_cons2() {
+        outer_prove_aux(
+            &"(cdr (cons 1 2))",
+            |store| store.num(2),
+            5,
+            DEFAULT_CHECK_GROTH16,
+            true,
+            300,
+            false,
+        );
+    }
 }
+
+/*
+;; outer-evaluate-no-mutual-recursion
+!(:assert-eq t (letrec ((even (lambda (n)
+                                 (if (= 0 n)
+                                     t
+                                     (odd (- n 1)))))
+                         (odd (lambda (n)
+                                (even (- n 1)))))
+                        ;; NOTE: This is not true mutual-recursion.
+                        ;; However, it exercises the behavior of LETREC.
+                        (odd 1)))
+
+;; outer-evaluate-no-mutual-recursion
+!(:assert-error (letrec ((even (lambda (n)
+                                  (if (= 0 n)
+                                      t
+                                      (odd (- n 1)))))
+                          (odd (lambda (n)
+                                 (even (- n 1)))))
+                         ;; NOTE: This is not true mutual-recursion.
+                         ;; However, it exercises the behavior of LETREC.
+                         (odd 2)))
+
+;; outer-evaluate-let-scope
+
+!(:assert-error (let ((closure (lambda (x)
+                                 ;; This use of CLOSURE is unbound.
+                                 closure)))
+                  (closure 1)))
+
+;; outer-evaluate-let-no-body
+!(:assert-eq nil (let ((a 9))))
+
+;; outer-evaluate-cons 1
+!(:assert-eq 1 (car (cons 1 2)))
+
+;; outer-evaluate-cons 2
+!(:assert-eq 2 (cdr (cons 1 2)))
+
+;; outer-evaluate-cons-in-function 1
+!(:assert-eq 2 (((lambda (a)
+                   (lambda (b)
+                     (car (cons a b))))
+                 2)
+                3))
+
+;; outer-evaluate-cons-in-function 2
+!(:assert-eq 3 (((lambda (a)
+                   (lambda (b)
+                     (cdr (cons a b))))
+                 2)
+                3))
+
+;; multiarg-eval-bug
+!(:assert-eq 2 (car (cdr '(1 2 3 4))))
+
+;; outer-evaluate-zero-arg-lambda 1
+!(:assert-eq 123 ((lambda () 123)))
+
+;; outer-evaluate-zero-arg-lambda 2
+!(:assert-eq 10 (let ((x 9) (f (lambda () (+ x 1)))) (f)))
+
+;; minimal-tail-call
+!(:assert-eq 123 (letrec
+                  ((f (lambda (x)
+                        (if (= x 140)
+                            123
+                            (f (+ x 1))))))
+                  (f 0)))
+
+;; multiple-letrec-bindings
+!(:assert-eq 123 (letrec
+                  ((x 888)
+                   (f (lambda (x)
+                        (if (= x 5)
+                            123
+                            (f (+ x 1))))))
+                  (f 0)))
+
+;; tail-call2
+!(:assert-eq 123 (letrec
+                  ((f (lambda (x)
+                        (if (= x 5)
+                            123
+                            (f (+ x 1)))))
+                   (g (lambda (x) (f x))))
+                  (g 0)))
+
+;; outer-evaluate-make-tree
+!(:assert-eq '(((h . g) . (f . e)) . ((d . c) . (b . a)))
+             (letrec ((mapcar (lambda (f list)
+                                 (if (eq list nil)
+                                     nil
+                                     (cons (f (car list)) (mapcar f (cdr list))))))
+                       (make-row (lambda (list)
+                                   (if (eq list nil)
+                                       nil
+                                       (let ((cdr (cdr list)))
+                                         (cons (cons (car list) (car cdr))
+                                               (make-row (cdr cdr)))))))
+                       (make-tree-aux (lambda (list)
+                                        (let ((row (make-row list)))
+                                          (if (eq (cdr row) nil)
+                                              row
+                                              (make-tree-aux row)))))
+                       (make-tree (lambda (list)
+                                    (car (make-tree-aux list))))
+                       (reverse-tree (lambda (tree)
+                                       (if (atom tree)
+                                           tree
+                                           (cons (reverse-tree (cdr tree))
+                                                 (reverse-tree (car tree)))))))
+                      (reverse-tree
+                       (make-tree '(a b c d e f g h)))))
+
+;; outer-evaluate-multiple-letrecstar-bindings
+!(:assert-eq 13 (letrec ((double (lambda (x) (* 2 x)))
+                          (square (lambda (x) (* x x))))
+                         (+ (square 3) (double 2))))
+
+;; outer-evaluate-multiple-letrecstar-bindings-referencing
+!(:assert-eq 11 (letrec ((double (lambda (x) (* 2 x)))
+                          (double-inc (lambda (x) (+ 1 (double x)))))
+                         (+ (double 3) (double-inc 2))))
+
+;; outer-evaluate-multiple-letrecstar-bindings-recursive
+!(:assert-eq 33 (letrec ((exp (lambda (base exponent)
+                                 (if (= 0 exponent)
+                                     1
+                                     (* base (exp base (- exponent 1))))))
+                          (exp2 (lambda (base exponent)
+                                  (if (= 0 exponent)
+                                      1
+                                      (* base (exp2 base (- exponent 1))))))
+                          (exp3 (lambda (base exponent)
+                                  (if (= 0 exponent)
+                                      1
+                                      (* base (exp3 base (- exponent 1)))))))
+                         (+ (+ (exp 3 2) (exp2 2 3))
+                            (exp3 4 2))))
+
+;; dont-discard-rest-env
+!(:assert-eq 18 (let ((z 9))
+                  (letrec ((a 1)
+                            (b 2)
+                            (l (lambda (x) (+ z x))))
+                           (l 9))))
+
+;; let-restore-saved-env
+!(:assert-error (+ (let ((a 1)) a) a))
+
+;; let-restore-saved-env2
+!(:assert-error (+ (let ((a 1) (a 2)) a) a))
+
+;; letrec-restore-saved-env
+!(:assert-error (+ (letrec ((a 1)(a 2)) a) a))
+
+;; lookup-restore-saved-env
+!(:assert-error (+ (let ((a 1))
+                     a)
+                   a))
+
+;; tail-call-restore-saved-env
+!(:assert-error (let ((outer (letrec
+                               ((x 888)
+                                (f (lambda (x)
+                                     (if (= x 2)
+                                         123
+                                         (f (+ x 1))))))
+                               f)))
+                  ;; This should be an error. X should not be bound here.
+                  (+ (outer 0) x)))
+
+;; binop-restore-saved-env
+!(:assert-error (let ((outer (let ((f (lambda (x)
+                                          (+ (let ((a 9)) a) x))))
+                                f)))
+                  ;; This should be an error. X should not be bound here.
+                  (+ (outer 1) x)))
+*/
