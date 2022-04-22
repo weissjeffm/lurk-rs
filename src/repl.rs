@@ -147,7 +147,7 @@ impl<F: LurkField> ReplState<F> {
     pub fn new(s: &mut Store<F>, limit: usize) -> Self {
         Self {
             store: store_mutex.clone(),
-            env: empty_sym_env(&mut store_mutex.lock().unwrap()),
+            env: empty_sym_env(&store_mutex.lock().unwrap()),
             limit,
         }
     }
