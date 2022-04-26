@@ -104,6 +104,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4521f3e3d031370679b3b140beb36dfe4801b09ac77e30c61941f97df3ef28b"
 
 [[package]]
+name = "base64"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
+
+[[package]]
 name = "bellperson"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -151,6 +157,15 @@ name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "bitmaps"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
+dependencies = [
+ "typenum",
+]
 
 [[package]]
 name = "bitvec"
@@ -885,15 +900,16 @@ version = "0.1.1"
 dependencies = [
  "arrayvec 0.5.2",
  "assert_cmd",
+ "base64",
  "bellperson",
  "blstrs",
  "clap 3.1.12",
  "clap-verbosity-flag",
  "ff",
  "hex",
- "libipld",
  "log",
  "lurk",
+ "lurk-ipld",
  "once_cell",
  "pairing",
  "predicates",
@@ -1086,6 +1102,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "im"
+version = "15.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0acd33ff0285af998aaf9b57342af478078f53492322fafc47450e09397e0e9"
+dependencies = [
+ "bitmaps",
+ "rand_core 0.6.3",
+ "rand_xoshiro",
+ "sized-chunks",
+ "typenum",
+ "version_check",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1169,72 +1199,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21a41fed9d98f27ab1c6d161da622a4fa35e8a54a8adc24bbf3ddd0ef70b0e50"
 
 [[package]]
-name = "libipld"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfb2f6a99d838dcb1cc18361c79e827b76e91987227406e705d07cbef51ab7be"
-dependencies = [
- "async-trait",
- "cached",
- "fnv",
- "libipld-cbor",
- "libipld-core",
- "libipld-json",
- "libipld-macro",
- "log",
- "multihash",
- "parking_lot",
- "thiserror",
-]
-
-[[package]]
-name = "libipld-cbor"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46b3bbc4f35b8f25eb140d183f33d4610a1eb6531b312f01161fa06693f8c28a"
-dependencies = [
- "byteorder",
- "libipld-core",
- "thiserror",
-]
-
-[[package]]
-name = "libipld-core"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbdd758764f9680a818af33c31db733eb7c45224715d8816b9dcf0548c75f7c5"
-dependencies = [
- "anyhow",
- "cid",
- "core2",
- "multibase",
- "multihash",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "libipld-json"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "415427568962961e21009eb92fd6052de95174423cff9d3c583491858e060f4e"
-dependencies = [
- "libipld-core",
- "multihash",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "libipld-macro"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6c4cb1056262ef4056ad9e5fb41f252c45f55009888e21b7837ac051f38814a"
-dependencies = [
- "libipld-core",
-]
-
-[[package]]
 name = "linux-raw-sys"
 version = "0.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1274,10 +1238,11 @@ dependencies = [
  "ff",
  "generic-array 0.14.5",
  "getrandom 0.2.6",
+ "im",
  "indexmap",
  "itertools 0.9.0",
- "libipld",
  "log",
+ "lurk-ipld",
  "memmap",
  "merlin",
  "multihash",
@@ -1299,6 +1264,72 @@ dependencies = [
  "string-interner",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "lurk-ipld"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6675e4a614577a2e677b7ddabbe23824c980b5373a7553768554fa4d3c83ec9f"
+dependencies = [
+ "async-trait",
+ "cached",
+ "fnv",
+ "log",
+ "lurk-ipld-cbor",
+ "lurk-ipld-core",
+ "lurk-ipld-json",
+ "lurk-ipld-macro",
+ "multihash",
+ "parking_lot",
+ "thiserror",
+]
+
+[[package]]
+name = "lurk-ipld-cbor"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f04538a7157c1782ddf2806355046adc01d2371a99502b66ac26df9149b62f3"
+dependencies = [
+ "byteorder",
+ "lurk-ipld-core",
+ "thiserror",
+]
+
+[[package]]
+name = "lurk-ipld-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfd43b843c3cdc52d0df1ccdfdc75c65e412c25ff696cbc29be069d6d5e8261e"
+dependencies = [
+ "anyhow",
+ "cid",
+ "core2",
+ "multibase",
+ "multihash",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "lurk-ipld-json"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db548002b1710ab2eaab21404087d0114f9069f18705c0ab6f9b26d46c614614"
+dependencies = [
+ "lurk-ipld-core",
+ "multihash",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lurk-ipld-macro"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b797538f4712f28003260eba722e4732668b9738fb88fa0d5202707a48c0272"
+dependencies = [
+ "lurk-ipld-core",
 ]
 
 [[package]]
@@ -1927,6 +1958,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_xoshiro"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f97cdb2a36ed4183de61b2f824cc45c9f1037f28afe0a322e9fff4c108b5aaa"
+dependencies = [
+ "rand_core 0.6.3",
+]
+
+[[package]]
 name = "rayon"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2230,6 +2270,16 @@ checksum = "881bf8156c87b6301fc5ca6b27f11eeb2761224c7081e69b409d5a1951a70c86"
 dependencies = [
  "digest 0.10.3",
  "keccak",
+]
+
+[[package]]
+name = "sized-chunks"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
+dependencies = [
+ "bitmaps",
+ "typenum",
 ]
 
 [[package]]
