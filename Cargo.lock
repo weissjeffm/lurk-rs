@@ -1255,6 +1255,7 @@ checksum = "5916d2ae698f6de9bfb891ad7a8d65c09d232dc58cc4ac433c7da3b2fd84bc2b"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 name = "libipld"
 version = "0.13.1"
@@ -1323,6 +1324,8 @@ dependencies = [
 
 [[package]]
 >>>>>>> 03ab595 (Fix Nova (temporary))
+=======
+>>>>>>> c6cbdc4 (chore: fix conflicts)
 name = "linux-raw-sys"
 version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
