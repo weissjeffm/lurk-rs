@@ -40,7 +40,8 @@
       rust2022-02-20 = getRust { date = "2022-02-20"; sha256 = "sha256-ZptNrC/0Eyr0c3IiXVWTJbuprFHq6E1KfBgqjGQBIRs="; };
       rust2022-03-15 = getRust { date = "2022-03-15"; sha256 = "sha256-C7X95SGY0D7Z17I8J9hg3z9cRnpXP7FjAOkvEdtB9nE="; };
       rust2022-04-14 = getRust { date = "2022-04-14"; sha256 = "sha256-5sq1QCaKlh84bpGfo040f+zQriJFW7rJO9tZ4rbaQgo="; };
-      rust = rust2022-04-14;
+      rust2022-05-10 = getRust { date = "2022-05-10"; sha256 = "sha256-4DJbv+qKGrcczUiOHpF7UzpScHsmcfm2a4wBWhpdOHU="; };
+      rust = rust2022-05-10;
       # Get a naersk with the input rust version
       naerskWithRust = rust: naersk.lib."${system}".override {
         rustc = rust;
@@ -118,6 +119,7 @@
           rust-analyzer
           clippy
           rustfmt
+          clang
           wasm-pack
           nodejs
           yarn
