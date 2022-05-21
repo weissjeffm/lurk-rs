@@ -346,4 +346,3 @@ impl<F: LurkField> ReplState<F> {
         Ok(())
     }
 }
-
