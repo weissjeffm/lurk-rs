@@ -10,24 +10,18 @@ use rustyline::validate::{
 use rustyline::{Config, Editor};
 use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
 use std::fs::read_to_string;
-use std::io::{self, StdoutLock, Write as _};
+use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 #[derive(Completer, Helper, Highlighter, Hinter)]
-pub struct InputValidator {
-    pub brackets: MatchingBracketValidator,
+struct InputValidator {
+    brackets: MatchingBracketValidator,
 }
 
 impl Validator for InputValidator {
     fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
         self.brackets.validate(ctx)
     }
-}
-pub enum ReplError {
-    Interrupted,
-    Eof,
-    Other(String),
 }
 
 #[derive(Clone)]
@@ -40,7 +34,6 @@ pub struct Repl<F: LurkField> {
     state: ReplState<F>,
     rl: Editor<InputValidator>,
     history_path: PathBuf,
-    stdout: StdoutLock<'static>,
 }
 
 impl<F: LurkField> Repl<F> {
@@ -58,46 +51,19 @@ impl<F: LurkField> Repl<F> {
             .build();
         let mut rl = Editor::with_config(config);
         rl.set_helper(Some(h));
+        if history_path.exists() {
+            rl.load_history(&history_path)?;
+        }
 
-        let stdout = io::stdout().lock();
-        let state = Arc::new(Mutex::new(ReplState::new(store, limit)));
+        let state = ReplState::new(s, limit);
         Ok(Self {
             state,
             rl,
             history_path,
-            stdout,
         })
     }
-}
-
-impl Repl for CliRepl {
-    fn println(&self, s: String) -> Result<()> {
-        println!("{}", s);
-        Ok(())
-    }
-
-    fn writer<'a>(&'a mut self) -> &'a mut (dyn io::Write + 'a) {
-        &mut self.stdout
-    }
-
-    fn save_history(&mut self) -> Result<()> {
+    pub fn save_history(&mut self) -> Result<()> {
         self.rl.save_history(&self.history_path)?;
-        Ok(())
-    }
-
-    fn add_history_entry(&mut self, _s: &str) -> Result<()> {
-        Ok(())
-    }
-
-    fn get_state(&self) -> Arc<Mutex<ReplState>> {
-        self.state.clone()
-    }
-
-    fn load_history(&mut self) -> Result<()> {
-        if self.history_path.exists() {
-            self.rl.load_history(&self.history_path)?;
-        }
-
         Ok(())
     }
 }
@@ -108,25 +74,58 @@ pub fn repl<P: AsRef<Path>, F: LurkField>(lurk_file: Option<P>) -> Result<()> {
 
     let mut s = Store::<F>::default();
     let limit = 100_000_000;
-    let mut repl = CliRepl::new(s, limit)?;
-    repl.println("Lurk REPL welcomes you.".to_owned())?;
+    let mut repl = Repl::new(&mut s, limit)?;
 
     {
         if let Some(lurk_file) = lurk_file {
-            repl.state
-                .lock()
-                .map_err(|e| anyhow!("{}", e))?
-                .handle_run(&lurk_file, &|s| println!("{}", s))
-                .unwrap();
+            repl.state.handle_run(&mut s, &lurk_file).unwrap();
             return Ok(());
         }
     }
 
+    let stdout = io::stdout();
+
     loop {
         match repl.rl.readline("> ") {
             Ok(line) => {
-                if let Ok(LineResult::Quit) = repl.handle_line(line) {
-                    break;
+                let result = repl.state.maybe_handle_command(&mut s, &line);
+
+                match result {
+                    Ok((handled_command, should_continue)) if handled_command => {
+                        if should_continue {
+                            continue;
+                        } else {
+                            break;
+                        };
+                    }
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("Error when handling {}: {:?}", line, e);
+                        continue;
+                    }
+                };
+
+                if let Some(expr) = s.read(&line) {
+                    let (
+                        IO {
+                            expr: result,
+                            env: _env,
+                            cont: next_cont,
+                        },
+                        iterations,
+                    ) = Evaluator::new(expr, repl.state.env, &mut s, limit).eval();
+
+                    print!("[{} iterations] => ", iterations);
+
+                    match next_cont.tag() {
+                        ContTag::Outermost | ContTag::Terminal => {
+                            let mut handle = stdout.lock();
+                            result.fmt(&s, &mut handle)?;
+                            println!();
+                        }
+                        ContTag::Error => println!("ERROR!"),
+                        _ => println!("Computation incomplete after limit: {}", limit),
+                    }
                 }
             }
             Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
@@ -146,16 +145,10 @@ pub fn repl<P: AsRef<Path>, F: LurkField>(lurk_file: Option<P>) -> Result<()> {
 impl<F: LurkField> ReplState<F> {
     pub fn new(s: &mut Store<F>, limit: usize) -> Self {
         Self {
-            store: store_mutex.clone(),
-            env: empty_sym_env(&store_mutex.lock().unwrap()),
+            env: empty_sym_env(s),
             limit,
         }
     }
-
-    pub fn get_store(&self) -> Arc<Mutex<Store<Fr>>> {
-        self.store.clone()
-    }
-
     pub fn eval_expr(
         &mut self,
         expr: Ptr<F>,
@@ -181,10 +174,7 @@ impl<F: LurkField> ReplState<F> {
         &mut self,
         store: &mut Store<F>,
         line: &str,
-        println: &dyn Fn(String),
     ) -> Result<(bool, bool)> {
-        let store_mutex = self.store.clone();
-        let mut store = store_mutex.lock().map_err(|e| anyhow!("{}", e))?;
         let mut chars = line.chars().peekable();
         let maybe_command = store.read_next(&mut chars);
 
@@ -197,7 +187,7 @@ impl<F: LurkField> ReplState<F> {
                             Tag::Str => {
                                 let path = store.fetch(&s).unwrap();
                                 let path = PathBuf::from(path.as_str().unwrap());
-                                self.handle_load(&mut store, path, println)?;
+                                self.handle_load(store, path)?;
                                 (true, true)
                             }
                             other => {
@@ -213,18 +203,18 @@ impl<F: LurkField> ReplState<F> {
                             if s.tag() == Tag::Str {
                                 let path = store.fetch(&s).unwrap();
                                 let path = PathBuf::from(path.as_str().unwrap());
-                                self.handle_run(&path, println)?;
+                                self.handle_run(store, &path)?;
                             }
                         }
                         (true, true)
                     }
                     ":CLEAR" => {
-                        self.env = empty_sym_env(&store);
+                        self.env = empty_sym_env(store);
                         (true, true)
                     }
                     s => {
                         if s.starts_with(':') {
-                            println(format!("Unkown command: {}", s));
+                            println!("Unkown command: {}", s);
                             (true, true)
                         } else {
                             (false, true)
@@ -242,12 +232,13 @@ impl<F: LurkField> ReplState<F> {
     pub fn handle_load<P: AsRef<Path>>(&mut self, store: &mut Store<F>, path: P) -> Result<()> {
         println!("Loading from {}.", path.as_ref().to_str().unwrap());
         let input = read_to_string(path)?;
+
         let expr = store.read(&input).unwrap();
         let (result, _limit, _next_cont) = self.eval_expr(expr, store);
 
         self.env = result;
 
-        println(format!("Read: {}", input));
+        println!("Read: {}", input);
         io::stdout().flush().unwrap();
         Ok(())
     }
@@ -256,19 +247,12 @@ impl<F: LurkField> ReplState<F> {
         &mut self,
         store: &mut Store<F>,
         path: P,
-        println: &dyn Fn(String),
     ) -> Result<()> {
-        let store_mutex = self.store.clone();
-        let mut store = store_mutex.lock().unwrap();
-        println(format!("Running from {}.", path.as_ref().to_str().unwrap()));
+        println!("Running from {}.", path.as_ref().to_str().unwrap());
         let p = path;
 
         let input = read_to_string(path)?;
-        println(format!(
-            "Read from {}: {}",
-            path.as_ref().to_str().unwrap(),
-            input
-        ));
+        println!("Read from {}: {}", path.as_ref().to_str().unwrap(), input);
         let mut chars = input.chars().peekable();
 
         while let Some((ptr, is_meta)) = store.read_maybe_meta(&mut chars) {
@@ -282,17 +266,17 @@ impl<F: LurkField> ReplState<F> {
                                     Expression::Str(path) => {
                                         let joined =
                                             p.as_ref().parent().unwrap().join(Path::new(&path));
-                                        self.handle_load(&mut store, &joined, println)?
+                                        self.handle_load(store, &joined)?
                                     }
                                     _ => panic!("Argument to :LOAD must be a string."),
                                 }
-                                io::stderr().flush().unwrap();
+                                io::stdout().flush().unwrap();
                             } else if s == &":RUN" {
                                 match store.fetch(&store.car(&rest)).unwrap() {
                                     Expression::Str(path) => {
                                         let joined =
                                             p.as_ref().parent().unwrap().join(Path::new(&path));
-                                        self.handle_run(&joined, println)?
+                                        self.handle_run(store, &joined)?
                                     }
                                     _ => panic!("Argument to :RUN must be a string."),
                                 }
@@ -306,16 +290,15 @@ impl<F: LurkField> ReplState<F> {
                             } else if s == &":ASSERT" {
                                 let (first, rest) = store.car_cdr(&rest);
                                 assert!(rest.is_nil());
-                                let (first_evaled, _, _) = self.eval_expr(first, &mut store);
+                                let (first_evaled, _, _) = self.eval_expr(first, store);
                                 assert!(!first_evaled.is_nil());
                             } else if s == &":CLEAR" {
-                                self.env = empty_sym_env(&store);
+                                self.env = empty_sym_env(store);
                             } else if s == &":ASSERT-ERROR" {
                                 let (first, rest) = store.car_cdr(&rest);
 
                                 assert!(rest.is_nil());
-                                let (_, _, continuation) =
-                                    self.clone().eval_expr(first, &mut store);
+                                let (_, _, continuation) = self.clone().eval_expr(first, store);
                                 assert!(continuation.is_error());
                                 // FIXME: bring back catching, or solve otherwise
                                 // std::panic::catch_unwind(||
@@ -353,9 +336,9 @@ impl<F: LurkField> ReplState<F> {
                     _ => panic!("!<COMMAND> form is unsupported."),
                 }
             } else {
-                let (result, _limit, _next_cont) = self.eval_expr(ptr, &mut store);
+                let (result, _limit, _next_cont) = self.eval_expr(ptr, store);
 
-                println(format!("Evaled: {}", result.fmt_to_string(&store)));
+                println!("Evaled: {}", result.fmt_to_string(store));
                 io::stdout().flush().unwrap();
             }
         }
@@ -363,3 +346,4 @@ impl<F: LurkField> ReplState<F> {
         Ok(())
     }
 }
+
