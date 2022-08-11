@@ -88,6 +88,8 @@ pub fn repl<P: AsRef<Path>, F: LurkField>(lurk_file: Option<P>) -> Result<()> {
     loop {
         match repl.rl.readline("> ") {
             Ok(line) => {
+                repl.save_history()?;
+
                 let result = repl.state.maybe_handle_command(&mut s, &line);
 
                 match result {
@@ -287,7 +289,11 @@ impl<F: LurkField> ReplState<F> {
                                 assert!(rest.is_nil());
                                 let (first_evaled, _, _, _) = self.eval_expr(first, store);
                                 let (second_evaled, _, _, _) = self.eval_expr(second, store);
+                                assert!(store.ptr_eq(&first_evaled, &second_evaled));
                             } else if s == &":ASSERT" {
+                                let (first, rest) = store.car_cdr(&rest);
+                                assert!(rest.is_nil());
+                                let (first_evaled, _, _, _) = self.eval_expr(first, store);
                                 assert!(!first_evaled.is_nil());
                             } else if s == &":CLEAR" {
                                 self.env = empty_sym_env(store);
