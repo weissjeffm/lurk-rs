@@ -31,7 +31,7 @@ pairing_lib = { version = "0.21", package = "pairing" }
 pretty_env_logger = "0.4"
 rand = "0.8"
 getrandom = { version = "0.2.5", optional = true }
-# rayon = "1.5.1"
+rayon = "1.5.1"
 rustyline = { package = "yatima-rustyline", version = "0.1", default-features = false }
 rustyline-derive = "0.5.0"
 
@@ -39,7 +39,7 @@ rand_xorshift = "0.3.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 serde_repr = "0.1.7"
-indexmap = { version = "1.8.0"}
+indexmap = { version = "1.8.0", features = ["rayon"] }
 ahash = "0.7.6"
 pasta_curves = "0.3.0"
 string-interner = "0.14.0"

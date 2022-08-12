@@ -1,5 +1,6 @@
 use generic_array::typenum::{U4, U6, U8};
 use neptune::Poseidon;
+use rayon::prelude::*;
 use std::hash::Hash;
 use std::{fmt, marker::PhantomData};
 use string_interner::symbol::{Symbol, SymbolUsize};
@@ -2627,13 +2628,13 @@ impl<F: LurkField> Store<F> {
     /// safe to call this incrementally. However, for best proving performance, we should call exactly once so all
     /// hashing can be batched, e.g. on the GPU.
     pub fn hydrate_scalar_cache(&mut self) {
-        self.dehydrated.iter().for_each(|ptr| {
+        self.dehydrated.par_iter().for_each(|ptr| {
             self.hash_expr(ptr).expect("failed to hash_expr");
         });
 
         self.dehydrated.truncate(0);
 
-        self.dehydrated_cont.iter().for_each(|ptr| {
+        self.dehydrated_cont.par_iter().for_each(|ptr| {
             self.hash_cont(ptr).expect("failed to hash_cont");
         });
 
