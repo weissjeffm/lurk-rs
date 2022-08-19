@@ -14,8 +14,8 @@ path = "src/bin/fcomm.rs"
 [dependencies]
 arrayvec = "0.5.1"
 base64 = "0.13.0"
-bellperson = { version = "0.20", default-features = false }
-blstrs = "0.4.1"
+bellperson = "0.20"
+blstrs = "0.4.2"
 ff = "0.11.0"
 hex = { version = "0.4.2", features = ["serde"] }
 log = "0.4.14"

@@ -7,7 +7,7 @@ description = "Lurk in Rust"
 edition = "2018"
 
 [dependencies]
-blstrs = "0.4.1"
+blstrs = "0.4.2"
 ff = "0.11.0"
 gensym = "0.1.0"
 lurk = { path = "../", package = "lurk" }
