@@ -13,15 +13,14 @@ use serde::Serialize;
 pub struct ScalarStore<F: LurkField> {
     scalar_map: BTreeMap<ScalarPtr<F>, Option<ScalarExpression<F>>>,
     scalar_cont_map: BTreeMap<ScalarContPtr<F>, Option<ScalarContinuation<F>>>,
-    #[serde(skip)]
-    pending_scalar_ptrs: Vec<ScalarPtr<F>>,
 }
 
 impl<'a, F: LurkField> ScalarStore<F> {
     /// Create a new `ScalarStore` and add all `ScalarPtr`s reachable in the scalar representation of `expr`.
     pub fn new_with_expr(store: &Store<F>, expr: &Ptr<F>) -> (Self, Option<ScalarPtr<F>>) {
         let mut new = Self::default();
-        let scalar_ptr = new.add_one_ptr(store, expr);
+        let mut pending = Vec::new();
+        let scalar_ptr = new.add_one_ptr(&mut pending, store, expr);
         if let Some(scalar_ptr) = scalar_ptr {
             (new, Some(scalar_ptr))
         } else {
@@ -30,17 +29,27 @@ impl<'a, F: LurkField> ScalarStore<F> {
     }
 
     /// Add all ScalarPtrs representing and reachable from expr.
-    pub fn add_one_ptr(&mut self, store: &Store<F>, expr: &Ptr<F>) -> Option<ScalarPtr<F>> {
-        let scalar_ptr = self.add_ptr(store, expr);
-        self.finalize(store);
+    pub fn add_one_ptr(
+        &mut self,
+        pending: &mut Vec<ScalarPtr<F>>,
+        store: &Store<F>,
+        expr: &Ptr<F>,
+    ) -> Option<ScalarPtr<F>> {
+        let scalar_ptr = self.add_ptr(pending, store, expr);
+        self.finalize(pending, store);
         scalar_ptr
     }
 
     /// Add the `ScalarPtr` representing `expr`, and queue it for proceessing.
-    pub fn add_ptr(&mut self, store: &Store<F>, expr: &Ptr<F>) -> Option<ScalarPtr<F>> {
+    pub fn add_ptr(
+        &mut self,
+        pending: &mut Vec<ScalarPtr<F>>,
+        store: &Store<F>,
+        expr: &Ptr<F>,
+    ) -> Option<ScalarPtr<F>> {
         // Find the scalar_ptr representing ptr.
         if let Some(scalar_ptr) = store.get_expr_hash(expr) {
-            self.add(store, expr, scalar_ptr);
+            self.add(pending, store, expr, scalar_ptr);
             Some(scalar_ptr)
         } else {
             None
@@ -49,17 +58,28 @@ impl<'a, F: LurkField> ScalarStore<F> {
 
     /// Add a single `ScalarPtr` and queue it for processing.
     /// NOTE: This requires that `store.scalar_cache` has been hydrated.
-    fn add_scalar_ptr(&mut self, store: &Store<F>, scalar_ptr: ScalarPtr<F>) {
+    fn add_scalar_ptr(
+        &mut self,
+        pending: &mut Vec<ScalarPtr<F>>,
+        store: &Store<F>,
+        scalar_ptr: ScalarPtr<F>,
+    ) {
         // Find the ptr corresponding to scalar_ptr.
         if let Some(ptr) = store.scalar_ptr_map.get(&scalar_ptr) {
-            self.add(store, &*ptr, scalar_ptr);
+            self.add(pending, store, &*ptr, scalar_ptr);
         }
     }
 
     /// Add the `ScalarPtr` and `ScalarExpression` associated with `ptr`. The relationship between `ptr` and
     /// `scalar_ptr` is not checked here, so `add` should only be called by `add_ptr` and `add_scalar_ptr`, which
     /// enforce this relationship.
-    fn add(&mut self, store: &Store<F>, ptr: &Ptr<F>, scalar_ptr: ScalarPtr<F>) {
+    fn add(
+        &mut self,
+        pending: &mut Vec<ScalarPtr<F>>,
+        store: &Store<F>,
+        ptr: &Ptr<F>,
+        scalar_ptr: ScalarPtr<F>,
+    ) {
         let mut new_pending_scalar_ptrs: Vec<ScalarPtr<F>> = Default::default();
 
         // If `scalar_ptr` is not already in the map, queue its children for processing.
@@ -71,7 +91,7 @@ impl<'a, F: LurkField> ScalarStore<F> {
             Some(scalar_expression)
         });
 
-        self.pending_scalar_ptrs.extend(new_pending_scalar_ptrs);
+        pending.extend(new_pending_scalar_ptrs);
     }
 
     /// All the `ScalarPtr`s directly reachable from `scalar_expression`, if any.
@@ -95,16 +115,15 @@ impl<'a, F: LurkField> ScalarStore<F> {
 
     /// Unqueue all the pending `ScalarPtr`s and add them, queueing all of their children, then repeat until the queue
     /// is pending queue is empty.
-    fn add_pending_scalar_ptrs(&mut self, store: &Store<F>) {
-        while let Some(scalar_ptr) = self.pending_scalar_ptrs.pop() {
-            self.add_scalar_ptr(store, scalar_ptr);
+    fn add_pending_scalar_ptrs(&mut self, pending: &mut Vec<ScalarPtr<F>>, store: &Store<F>) {
+        while let Some(scalar_ptr) = pending.pop() {
+            self.add_scalar_ptr(pending, store, scalar_ptr);
         }
-        assert!(self.pending_scalar_ptrs.is_empty());
     }
 
     /// Method which finalizes the `ScalarStore`, ensuring that all reachable `ScalarPtr`s have been added.
-    pub fn finalize(&mut self, store: &Store<F>) {
-        self.add_pending_scalar_ptrs(store);
+    pub fn finalize(&mut self, pending: &mut Vec<ScalarPtr<F>>, store: &Store<F>) {
+        self.add_pending_scalar_ptrs(pending, store);
     }
     pub fn get_expr(&self, ptr: &ScalarPtr<F>) -> Option<&ScalarExpression<F>> {
         let x = self.scalar_map.get(ptr)?;
@@ -117,36 +136,28 @@ impl<'a, F: LurkField> ScalarStore<F> {
     }
 
     pub fn to_store_with_expr(&mut self, ptr: &ScalarPtr<F>) -> Option<(Store<F>, Ptr<F>)> {
-        if self.pending_scalar_ptrs.is_empty() {
-            let mut store = Store::new();
+        let mut store = Store::new();
 
-            let ptr = store.intern_scalar_ptr(*ptr, self)?;
+        let ptr = store.intern_scalar_ptr(*ptr, self)?;
 
-            for scalar_ptr in self.scalar_map.keys() {
-                store.intern_scalar_ptr(*scalar_ptr, self);
-            }
-            for ptr in self.scalar_cont_map.keys() {
-                store.intern_scalar_cont_ptr(*ptr, self);
-            }
-            Some((store, ptr))
-        } else {
-            None
+        for scalar_ptr in self.scalar_map.keys() {
+            store.intern_scalar_ptr(*scalar_ptr, self);
         }
+        for ptr in self.scalar_cont_map.keys() {
+            store.intern_scalar_cont_ptr(*ptr, self);
+        }
+        Some((store, ptr))
     }
     pub fn to_store(&mut self) -> Option<Store<F>> {
-        if self.pending_scalar_ptrs.is_empty() {
-            let mut store = Store::new();
+        let mut store = Store::new();
 
-            for ptr in self.scalar_map.keys() {
-                store.intern_scalar_ptr(*ptr, self);
-            }
-            for ptr in self.scalar_cont_map.keys() {
-                store.intern_scalar_cont_ptr(*ptr, self);
-            }
-            Some(store)
-        } else {
-            None
+        for ptr in self.scalar_map.keys() {
+            store.intern_scalar_ptr(*ptr, self);
         }
+        for ptr in self.scalar_cont_map.keys() {
+            store.intern_scalar_cont_ptr(*ptr, self);
+        }
+        Some(store)
     }
 }
 
@@ -522,7 +533,6 @@ mod test {
             ScalarStore {
                 scalar_map: map.into_iter().collect(),
                 scalar_cont_map: cont_map.into_iter().collect(),
-                pending_scalar_ptrs: Vec::new(),
             }
         }
     }
