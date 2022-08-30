@@ -1,11 +1,66 @@
-use std::collections::BTreeMap;
-
 use crate::field::LurkField;
+use std::collections::BTreeMap;
+use std::hash::Hash;
 
-use crate::store::{Op1, Op2, Pointer, Ptr, Rel2, ScalarContPtr, ScalarPtr, Store, Tag};
+use crate::store::{
+    Op1, Op2, Pointer, Ptr, Rel2, ScalarContPtr, ScalarPointer, ScalarPtr, Store, Tag,
+};
 use crate::Num;
 use serde::Deserialize;
 use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UPtr<F: LurkField>(F, F);
+
+impl<F: LurkField> Copy for UPtr<F> {}
+
+impl<F: LurkField> PartialOrd for UPtr<F> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        (self.0.to_repr().as_ref(), self.1.to_repr().as_ref())
+            .partial_cmp(&(other.0.to_repr().as_ref(), other.1.to_repr().as_ref()))
+    }
+}
+
+impl<F: LurkField> Ord for UPtr<F> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        (self.0.to_repr().as_ref(), self.1.to_repr().as_ref())
+            .cmp(&(other.0.to_repr().as_ref(), other.1.to_repr().as_ref()))
+    }
+}
+
+#[allow(clippy::derive_hash_xor_eq)]
+impl<F: LurkField> Hash for UPtr<F> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.to_repr().as_ref().hash(state);
+        self.1.to_repr().as_ref().hash(state);
+    }
+}
+
+impl<F: LurkField> ScalarPointer<F> for UPtr<F> {
+    fn from_parts(tag: F, value: F) -> Self {
+        UPtr(tag, value)
+    }
+
+    fn tag(&self) -> &F {
+        &self.0
+    }
+
+    fn value(&self) -> &F {
+        &self.1
+    }
+}
+
+impl<F: LurkField> From<ScalarPtr<F>> for UPtr<F> {
+    fn from(x: ScalarPtr<F>) -> Self {
+        UPtr(*x.tag(), *x.value())
+    }
+}
+
+impl<F: LurkField> From<ScalarContPtr<F>> for UPtr<F> {
+    fn from(x: ScalarContPtr<F>) -> Self {
+        UPtr(*x.tag(), *x.value())
+    }
+}
 
 /// `ScalarStore` allows realization of a graph of `ScalarPtr`s suitable for serialization to IPLD. `ScalarExpression`s
 /// are composed only of `ScalarPtr`s, so `scalar_map` suffices to allow traverseing an arbitrary DAG.
@@ -159,6 +214,25 @@ impl<'a, F: LurkField> ScalarStore<F> {
         }
         Some(store)
     }
+
+    pub fn ser_f(self) -> Vec<F> {
+        let mut merged_map: BTreeMap<UPtr<F>, Vec<F>> = BTreeMap::new();
+        for (ptr, expr) in self.scalar_map {
+            let expr: Vec<F> = expr.map_or_else(|| vec![F::zero()], |x| x.ser_f());
+            merged_map.insert(ptr.into(), expr);
+        }
+        for (ptr, cont) in self.scalar_cont_map {
+            let cont: Vec<F> = cont.map_or_else(|| vec![F::zero()], |x| x.ser_f());
+            merged_map.insert(ptr.into(), cont);
+        }
+        let mut res = Vec::new();
+        for (UPtr(tag, dig), mut vec) in merged_map.into_iter() {
+            res.push(tag);
+            res.push(dig);
+            res.append(&mut vec);
+        }
+        res
+    }
 }
 
 impl<'a, F: LurkField> ScalarExpression<F> {
@@ -227,6 +301,77 @@ pub enum ScalarExpression<F: LurkField> {
 impl<'a, F: LurkField> Default for ScalarExpression<F> {
     fn default() -> Self {
         Self::Nil
+    }
+}
+
+pub fn small_string_to_f<F: LurkField>(s: String) -> Option<F> {
+    let bytes = s.as_bytes();
+    if bytes.len() as u32 > F::CAPACITY {
+        None
+    } else {
+        let mut def: F::Repr = F::default().to_repr();
+        def.as_mut().copy_from_slice(bytes);
+        F::from_repr(def).into()
+    }
+}
+
+pub fn char_to_f<F: LurkField>(c: char) -> Option<F> {
+    let bytes: Vec<u8> = (c as u32).to_be_bytes().into();
+    let mut def: F::Repr = F::default().to_repr();
+    def.as_mut().copy_from_slice(&bytes);
+    F::from_repr(def).into()
+}
+
+impl<F: LurkField> ScalarExpression<F> {
+    pub fn ser_f(self) -> Vec<F> {
+        match self {
+            ScalarExpression::Nil => todo!(),
+            ScalarExpression::Cons(car, cdr) => {
+                vec![
+                    *ScalarPointer::tag(&car),
+                    *ScalarPointer::value(&car),
+                    *ScalarPointer::tag(&cdr),
+                    *ScalarPointer::value(&cdr),
+                ]
+            }
+            ScalarExpression::Comm(a, b) => {
+                vec![a, *ScalarPointer::tag(&b), *ScalarPointer::value(&b)]
+            }
+            ScalarExpression::Sym(string) => {
+                todo!()
+            }
+            ScalarExpression::Fun {
+                arg,
+                body,
+                closed_env,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&arg),
+                    *ScalarPointer::value(&arg),
+                    *ScalarPointer::tag(&body),
+                    *ScalarPointer::value(&body),
+                    *ScalarPointer::tag(&closed_env),
+                    *ScalarPointer::value(&closed_env),
+                ]
+            }
+            ScalarExpression::Str(string) => {
+                todo!()
+            }
+            ScalarExpression::Thunk(thunk) => {
+                vec![
+                    *ScalarPointer::tag(&thunk.value),
+                    *ScalarPointer::value(&thunk.value),
+                    *ScalarPointer::tag(&thunk.continuation),
+                    *ScalarPointer::value(&thunk.continuation),
+                ]
+            }
+            ScalarExpression::Char(c) => {
+                vec![char_to_f(c).unwrap()]
+            }
+            ScalarExpression::Num(x) => {
+                vec![x]
+            }
+        }
     }
 }
 
@@ -308,6 +453,186 @@ pub enum ScalarContinuation<F: LurkField> {
     },
     Dummy,
     Terminal,
+}
+
+impl<F: LurkField> ScalarContinuation<F> {
+    pub fn ser_f(self) -> Vec<F> {
+        match self {
+            ScalarContinuation::Outermost => todo!(),
+            ScalarContinuation::Call {
+                unevaled_arg,
+                saved_env,
+                continuation,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&unevaled_arg),
+                    *ScalarPointer::value(&unevaled_arg),
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Call2 {
+                function,
+                saved_env,
+                continuation,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&function),
+                    *ScalarPointer::value(&function),
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Tail {
+                saved_env,
+                continuation,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Error => todo!(),
+            ScalarContinuation::Lookup {
+                saved_env,
+                continuation,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Unop {
+                operator,
+                continuation,
+            } => {
+                vec![
+                    operator.as_field(),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Binop {
+                operator,
+                saved_env,
+                unevaled_args,
+                continuation,
+            } => {
+                vec![
+                    operator.as_field(),
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&unevaled_args),
+                    *ScalarPointer::value(&unevaled_args),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Binop2 {
+                operator,
+                evaled_arg,
+                continuation,
+            } => {
+                vec![
+                    operator.as_field(),
+                    *ScalarPointer::tag(&evaled_arg),
+                    *ScalarPointer::value(&evaled_arg),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Relop {
+                operator,
+                saved_env,
+                unevaled_args,
+                continuation,
+            } => {
+                vec![
+                    operator.as_field(),
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&unevaled_args),
+                    *ScalarPointer::value(&unevaled_args),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Relop2 {
+                operator,
+                evaled_arg,
+                continuation,
+            } => {
+                vec![
+                    operator.as_field(),
+                    *ScalarPointer::tag(&evaled_arg),
+                    *ScalarPointer::value(&evaled_arg),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::If {
+                unevaled_args,
+                continuation,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&unevaled_args),
+                    *ScalarPointer::value(&unevaled_args),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Let {
+                var,
+                body,
+                saved_env,
+                continuation,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&var),
+                    *ScalarPointer::value(&var),
+                    *ScalarPointer::tag(&body),
+                    *ScalarPointer::value(&body),
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::LetRec {
+                var,
+                body,
+                saved_env,
+                continuation,
+            } => {
+                vec![
+                    *ScalarPointer::tag(&var),
+                    *ScalarPointer::value(&var),
+                    *ScalarPointer::tag(&body),
+                    *ScalarPointer::value(&body),
+                    *ScalarPointer::tag(&saved_env),
+                    *ScalarPointer::value(&saved_env),
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Emit { continuation } => {
+                vec![
+                    *ScalarPointer::tag(&continuation),
+                    *ScalarPointer::value(&continuation),
+                ]
+            }
+            ScalarContinuation::Dummy => todo!(),
+            ScalarContinuation::Terminal => todo!(),
+        }
+    }
 }
 
 #[cfg(test)]
