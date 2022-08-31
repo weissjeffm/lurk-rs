@@ -605,6 +605,11 @@ impl Op1 {
         }
     }
 
+    pub fn from_field<F: LurkField>(f: F) -> Option<Self> {
+        let x: u16 = f.to_u16()?;
+        Op1::from_u16(x)
+    }
+
     pub fn as_field<F: From<u64> + ff::Field>(&self) -> F {
         F::from(*self as u64)
     }
@@ -635,6 +640,12 @@ impl Op2 {
             _ => None,
         }
     }
+
+    pub fn from_field<F: LurkField>(f: F) -> Option<Self> {
+        let x: u16 = f.to_u16()?;
+        Self::from_u16(x)
+    }
+
     pub fn as_field<F: From<u64> + ff::Field>(&self) -> F {
         F::from(*self as u64)
     }
@@ -669,6 +680,11 @@ impl Rel2 {
             _ => None,
         }
     }
+    pub fn from_field<F: LurkField>(f: F) -> Option<Self> {
+        let x: u16 = f.to_u16()?;
+        Self::from_u16(x)
+    }
+
     pub fn as_field<F: From<u64> + ff::Field>(&self) -> F {
         F::from(*self as u64)
     }

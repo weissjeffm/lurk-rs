@@ -34,6 +34,16 @@ pub trait LurkField: ff::PrimeField {
         let (tag_bytes, dig_bytes) = bs.split_at(l);
         Some((Self::from_bytes(tag_bytes)?, Self::from_bytes(dig_bytes)?))
     }
+    fn to_u16(&self) -> Option<u16> {
+        for x in &self.to_repr().as_ref()[2..] {
+            if *x != 0 {
+                return None;
+            }
+        }
+        let mut byte_array = [0u8; 2];
+        byte_array.copy_from_slice(&self.to_repr().as_ref()[0..2]);
+        Some(u16::from_le_bytes(byte_array))
+    }
 
     fn to_u32(&self) -> Option<u32> {
         for x in &self.to_repr().as_ref()[4..] {
