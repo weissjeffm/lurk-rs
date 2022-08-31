@@ -113,8 +113,8 @@ impl UTag {
 /// are composed only of `ScalarPtr`s, so `scalar_map` suffices to allow traverseing an arbitrary DAG.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScalarStore<F: LurkField> {
-    scalar_map: BTreeMap<ScalarPtr<F>, Option<ScalarExpression<F>>>,
-    scalar_cont_map: BTreeMap<ScalarContPtr<F>, Option<ScalarContinuation<F>>>,
+    scalar_map: BTreeMap<ScalarPtr<F>, ScalarExpression<F>>,
+    scalar_cont_map: BTreeMap<ScalarContPtr<F>, ScalarContinuation<F>>,
 }
 
 impl<'a, F: LurkField> ScalarStore<F> {
@@ -182,18 +182,14 @@ impl<'a, F: LurkField> ScalarStore<F> {
         ptr: &Ptr<F>,
         scalar_ptr: ScalarPtr<F>,
     ) {
-        let mut new_pending_scalar_ptrs: Vec<ScalarPtr<F>> = Default::default();
-
-        // If `scalar_ptr` is not already in the map, queue its children for processing.
-        self.scalar_map.entry(scalar_ptr).or_insert_with(|| {
-            let scalar_expression = ScalarExpression::from_ptr(store, ptr)?;
-            if let Some(more_scalar_ptrs) = Self::child_scalar_ptrs(&scalar_expression) {
-                new_pending_scalar_ptrs.extend(more_scalar_ptrs);
+        if !self.scalar_map.contains_key(&scalar_ptr) {
+            if let Some(scalar_expression) = ScalarExpression::from_ptr(store, ptr) {
+                if let Some(more_scalar_ptrs) = Self::child_scalar_ptrs(&scalar_expression) {
+                    pending.extend(more_scalar_ptrs);
+                }
+                self.scalar_map.insert(scalar_ptr, scalar_expression);
             }
-            Some(scalar_expression)
-        });
-
-        pending.extend(new_pending_scalar_ptrs);
+        }
     }
 
     /// All the `ScalarPtr`s directly reachable from `scalar_expression`, if any.
@@ -228,13 +224,11 @@ impl<'a, F: LurkField> ScalarStore<F> {
         self.add_pending_scalar_ptrs(pending, store);
     }
     pub fn get_expr(&self, ptr: &ScalarPtr<F>) -> Option<&ScalarExpression<F>> {
-        let x = self.scalar_map.get(ptr)?;
-        (*x).as_ref()
+        self.scalar_map.get(ptr)
     }
 
     pub fn get_cont(&self, ptr: &ScalarContPtr<F>) -> Option<&ScalarContinuation<F>> {
-        let x = self.scalar_cont_map.get(ptr)?;
-        (*x).as_ref()
+        self.scalar_cont_map.get(ptr)
     }
 
     pub fn to_store_with_expr(&mut self, ptr: &ScalarPtr<F>) -> Option<(Store<F>, Ptr<F>)> {
@@ -265,12 +259,10 @@ impl<'a, F: LurkField> ScalarStore<F> {
     pub fn ser_f(self) -> Vec<F> {
         let mut merged_map: BTreeMap<UPtr<F>, Vec<F>> = BTreeMap::new();
         for (ptr, expr) in self.scalar_map {
-            let expr: Vec<F> = expr.map_or_else(|| vec![F::zero()], |x| x.ser_f());
-            merged_map.insert(ptr.into(), expr);
+            merged_map.insert(ptr.into(), expr.ser_f());
         }
         for (ptr, cont) in self.scalar_cont_map {
-            let cont: Vec<F> = cont.map_or_else(|| vec![F::zero()], |x| x.ser_f());
-            merged_map.insert(ptr.into(), cont);
+            merged_map.insert(ptr.into(), cont.ser_f());
         }
         let mut res = Vec::new();
         for (UPtr(tag, dig), mut vec) in merged_map.into_iter() {
@@ -284,8 +276,8 @@ impl<'a, F: LurkField> ScalarStore<F> {
     pub fn de_f(stream: &Vec<F>) -> Result<Self, ()> {
         let mut idx: usize = 0;
         let len = stream.len();
-        let mut scalar_map: BTreeMap<ScalarPtr<F>, Option<ScalarExpression<F>>> = BTreeMap::new();
-        let mut scalar_cont_map: BTreeMap<ScalarContPtr<F>, Option<ScalarContinuation<F>>> =
+        let mut scalar_map: BTreeMap<ScalarPtr<F>, ScalarExpression<F>> = BTreeMap::new();
+        let mut scalar_cont_map: BTreeMap<ScalarContPtr<F>, ScalarContinuation<F>> =
             BTreeMap::new();
 
         while idx < len {
@@ -295,13 +287,13 @@ impl<'a, F: LurkField> ScalarStore<F> {
                 UTag::Tag(tag) => {
                     let ptr = ScalarPtr::from_parts(tag.as_field(), value);
                     let (idx2, expr) = ScalarExpression::de_f(stream, idx + 2, tag)?;
-                    scalar_map.insert(ptr, Some(expr));
+                    scalar_map.insert(ptr, expr);
                     idx = idx2
                 }
                 UTag::ContTag(tag) => {
                     let ptr = ScalarContPtr::from_parts(tag.as_field(), value);
                     let (idx2, expr) = ScalarContinuation::de_f(stream, idx + 2, tag)?;
-                    scalar_cont_map.insert(ptr, Some(expr));
+                    scalar_cont_map.insert(ptr, expr);
                     idx = idx2
                 }
             }
@@ -493,8 +485,6 @@ impl<F: LurkField> ScalarExpression<F> {
                 Ok((idx + 1, ScalarExpression::Char(chr)))
             }
             Tag::Num => Ok((idx + 1, ScalarExpression::Num(stream[idx]))),
-
-            _ => Err(()),
         }
     }
 }
@@ -1147,8 +1137,8 @@ mod test {
     // testing ipld
     impl Arbitrary for ScalarStore<Fr> {
         fn arbitrary(g: &mut Gen) -> Self {
-            let map: Vec<(ScalarPtr<Fr>, Option<ScalarExpression<Fr>>)> = Arbitrary::arbitrary(g);
-            let cont_map: Vec<(ScalarContPtr<Fr>, Option<ScalarContinuation<Fr>>)> =
+            let map: Vec<(ScalarPtr<Fr>, ScalarExpression<Fr>)> = Arbitrary::arbitrary(g);
+            let cont_map: Vec<(ScalarContPtr<Fr>, ScalarContinuation<Fr>)> =
                 Arbitrary::arbitrary(g);
             ScalarStore {
                 scalar_map: map.into_iter().collect(),

@@ -2794,14 +2794,14 @@ pub mod test {
         }
     }
 
-    #[test]
-    fn unit_scalar_ptr_ipld() {
-        let tag = Tag::Num.as_field();
-        let dig = 0.into();
-        let ptr = ScalarPtr::<Fr>::from_parts(tag, dig);
-        let cid = Cid::new_v1(Fr::to_multicodec(tag).unwrap(), Fr::to_multihash(dig));
-        assert_eq!(to_ipld(ptr).unwrap(), Ipld::Link(cid))
-    }
+    //#[test]
+    //fn unit_scalar_ptr_ipld() {
+    //    let tag = Tag::Num.as_field();
+    //    let dig = 0.into();
+    //    let ptr = ScalarPtr::<Fr>::from_parts(tag, dig);
+    //    let cid = Cid::new_v1(Fr::to_multicodec(tag).unwrap(), Fr::to_multihash(dig));
+    //    assert_eq!(to_ipld(ptr).unwrap(), Ipld::Link(cid))
+    //}
 
     impl Arbitrary for ScalarContPtr<Fr> {
         fn arbitrary(g: &mut Gen) -> Self {
@@ -2811,27 +2811,27 @@ pub mod test {
         }
     }
 
-    #[quickcheck]
-    fn prop_scalar_cont_ptr_ipld(x: ScalarContPtr<Fr>) -> bool {
-        if let Ok(ipld) = to_ipld(x) {
-            if let Ok(y) = from_ipld(ipld) {
-                x == y
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    }
+    //#[quickcheck]
+    //fn prop_scalar_cont_ptr_ipld(x: ScalarContPtr<Fr>) -> bool {
+    //    if let Ok(ipld) = to_ipld(x) {
+    //        if let Ok(y) = from_ipld(ipld) {
+    //            x == y
+    //        } else {
+    //            false
+    //        }
+    //    } else {
+    //        false
+    //    }
+    //}
 
-    #[test]
-    fn unit_scalar_cont_ptr_ipld() {
-        let tag = ContTag::Dummy.as_field();
-        let dig = 0.into();
-        let ptr = ScalarContPtr::<Fr>::from_parts(tag, dig);
-        let cid = Cid::new_v1(Fr::to_multicodec(tag).unwrap(), Fr::to_multihash(dig));
-        assert_eq!(to_ipld(ptr).unwrap(), Ipld::Link(cid))
-    }
+    //#[test]
+    //fn unit_scalar_cont_ptr_ipld() {
+    //    let tag = ContTag::Dummy.as_field();
+    //    let dig = 0.into();
+    //    let ptr = ScalarContPtr::<Fr>::from_parts(tag, dig);
+    //    let cid = Cid::new_v1(Fr::to_multicodec(tag).unwrap(), Fr::to_multihash(dig));
+    //    assert_eq!(to_ipld(ptr).unwrap(), Ipld::Link(cid))
+    //}
 
     impl Arbitrary for Op1 {
         fn arbitrary(g: &mut Gen) -> Self {
